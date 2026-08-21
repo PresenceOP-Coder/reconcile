@@ -9,9 +9,11 @@ import (
 	"time"
 )
 
-// GenerateFixtures generates synthetic CSV data for testing.
+// GenerateFixtures generates synthetic CSV data for testing with deterministic representation of all edge cases.
 func GenerateFixtures(outputDir string) error {
-	rand.Seed(time.Now().UnixNano())
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		return fmt.Errorf("failed to create output directory %s: %w", outputDir, err)
+	}
 
 	gatewayFile, err := os.Create(filepath.Join(outputDir, "gateway_settlement.csv"))
 	if err != nil {
@@ -44,75 +46,82 @@ func GenerateFixtures(outputDir string) error {
 	bankWriter.Write(headers)
 	ledgerWriter.Write(headers)
 
-	baseDate := time.Date(2023, 10, 1, 12, 0, 0, 0, time.UTC)
-	recordCount := 25 // 25 groups
+	baseDate := time.Date(2023, 10, 1, 10, 0, 0, 0, time.UTC)
+	randGen := rand.New(rand.NewSource(42)) // Deterministic seed for reproducible test fixtures
 
-	for i := 1; i <= recordCount; i++ {
+	// 25 groups designed to hit every category requested in the hackathon brief
+	for i := 1; i <= 25; i++ {
 		refID := fmt.Sprintf("REF-%04d", i)
-		amount := float64(rand.Intn(10000)+1000) / 100.0 // 10.00 to 110.00
-
-		caseType := rand.Intn(10)
-		// 0..5 (60%): Exact match
-		// 6: Split settlement
-		// 7: Rounding drift
-		// 8: Date drift
-		// 9: Orphan or Duplicate or Malformed
+		amount := float64(randGen.Intn(8000)+2000) / 100.0 // 20.00 to 100.00
+		currentDate := baseDate.AddDate(0, 0, i)
+		dateStr := currentDate.Format(time.RFC3339)
 
 		switch {
-		case caseType <= 5: // Exact match
-			dateStr := baseDate.Format(time.RFC3339)
-			gwWriter.Write([]string{fmt.Sprintf("GW-%d", i), refID, fmt.Sprintf("%.2f", amount), "INR", dateStr, "Payment"})
-			bankWriter.Write([]string{fmt.Sprintf("BK-%d", i), refID, fmt.Sprintf("%.2f", amount), "INR", dateStr, "Credit"})
-			ledgerWriter.Write([]string{fmt.Sprintf("LD-%d", i), refID, fmt.Sprintf("%.2f", amount), "INR", dateStr, "Sale"})
+		// 1..13 (52%): Exact 1:1 Matches
+		case i <= 13:
+			gwWriter.Write([]string{fmt.Sprintf("GW-%d", i), refID, fmt.Sprintf("%.2f", amount), "INR", dateStr, "Gateway Settlement"})
+			bankWriter.Write([]string{fmt.Sprintf("BK-%d", i), refID, fmt.Sprintf("%.2f", amount), "INR", dateStr, "Bank Credit"})
+			ledgerWriter.Write([]string{fmt.Sprintf("LD-%d", i), refID, fmt.Sprintf("%.2f", amount), "INR", dateStr, "General Ledger Sale"})
 
-		case caseType == 6: // Split settlement
-			dateStr := baseDate.Format(time.RFC3339)
-			amt1 := amount * 0.6
-			amt2 := amount - amt1
-			gwWriter.Write([]string{fmt.Sprintf("GW-%d-A", i), refID, fmt.Sprintf("%.2f", amt1), "INR", dateStr, "Payment Part 1"})
-			gwWriter.Write([]string{fmt.Sprintf("GW-%d-B", i), refID, fmt.Sprintf("%.2f", amt2), "INR", dateStr, "Payment Part 2"})
-			bankWriter.Write([]string{fmt.Sprintf("BK-%d", i), refID, fmt.Sprintf("%.2f", amount), "INR", dateStr, "Credit"})
-			ledgerWriter.Write([]string{fmt.Sprintf("LD-%d", i), refID, fmt.Sprintf("%.2f", amount), "INR", dateStr, "Sale"})
+		// 14..15 (8%): Split settlements (1 ledger entry maps to 2 gateway entries)
+		case i <= 15:
+			amt1 := float64(int(amount*0.6*100)) / 100.0
+			amt2 := float64(int((amount-amt1)*100)) / 100.0
+			totalAmt := amt1 + amt2
+			gwWriter.Write([]string{fmt.Sprintf("GW-%d-A", i), refID, fmt.Sprintf("%.2f", amt1), "INR", dateStr, "Split Settlement Part 1"})
+			gwWriter.Write([]string{fmt.Sprintf("GW-%d-B", i), refID, fmt.Sprintf("%.2f", amt2), "INR", dateStr, "Split Settlement Part 2"})
+			bankWriter.Write([]string{fmt.Sprintf("BK-%d", i), refID, fmt.Sprintf("%.2f", totalAmt), "INR", dateStr, "Bank Credit"})
+			ledgerWriter.Write([]string{fmt.Sprintf("LD-%d", i), refID, fmt.Sprintf("%.2f", totalAmt), "INR", dateStr, "General Ledger Sale"})
 
-		case caseType == 7: // Rounding drift
-			dateStr := baseDate.Format(time.RFC3339)
+		// 16..17 (8%): Rounding drift within tolerance (e.g. ₹0.05 currency conversion)
+		case i <= 17:
 			gwAmt := amount + 0.05
-			gwWriter.Write([]string{fmt.Sprintf("GW-%d", i), refID, fmt.Sprintf("%.2f", gwAmt), "INR", dateStr, "Payment"})
-			bankWriter.Write([]string{fmt.Sprintf("BK-%d", i), refID, fmt.Sprintf("%.2f", gwAmt), "INR", dateStr, "Credit"})
-			ledgerWriter.Write([]string{fmt.Sprintf("LD-%d", i), refID, fmt.Sprintf("%.2f", amount), "INR", dateStr, "Sale"})
+			gwWriter.Write([]string{fmt.Sprintf("GW-%d", i), refID, fmt.Sprintf("%.2f", gwAmt), "INR", dateStr, "Gateway Settlement"})
+			bankWriter.Write([]string{fmt.Sprintf("BK-%d", i), refID, fmt.Sprintf("%.2f", gwAmt), "INR", dateStr, "Bank Credit"})
+			ledgerWriter.Write([]string{fmt.Sprintf("LD-%d", i), refID, fmt.Sprintf("%.2f", amount), "INR", dateStr, "General Ledger Sale"})
 
-		case caseType == 8: // Date drift
-			gwDateStr := baseDate.AddDate(0, 0, 2).Format(time.RFC3339) // 2 days later
-			ldDateStr := baseDate.Format(time.RFC3339)
-			gwWriter.Write([]string{fmt.Sprintf("GW-%d", i), refID, fmt.Sprintf("%.2f", amount), "INR", gwDateStr, "Payment"})
-			bankWriter.Write([]string{fmt.Sprintf("BK-%d", i), refID, fmt.Sprintf("%.2f", amount), "INR", gwDateStr, "Credit"})
-			ledgerWriter.Write([]string{fmt.Sprintf("LD-%d", i), refID, fmt.Sprintf("%.2f", amount), "INR", ldDateStr, "Sale"})
+		// 18..19 (8%): Date drift within tolerance (settlement arrives 2 days later)
+		case i <= 19:
+			driftDateStr := currentDate.AddDate(0, 0, 2).Format(time.RFC3339)
+			gwWriter.Write([]string{fmt.Sprintf("GW-%d", i), refID, fmt.Sprintf("%.2f", amount), "INR", driftDateStr, "Delayed Gateway Settlement"})
+			bankWriter.Write([]string{fmt.Sprintf("BK-%d", i), refID, fmt.Sprintf("%.2f", amount), "INR", driftDateStr, "Delayed Bank Credit"})
+			ledgerWriter.Write([]string{fmt.Sprintf("LD-%d", i), refID, fmt.Sprintf("%.2f", amount), "INR", dateStr, "General Ledger Sale"})
 
-		case caseType == 9: // Orphans and other errors
-			subType := rand.Intn(4)
-			dateStr := baseDate.Format(time.RFC3339)
-			if subType == 0 { // Orphan in ledger
-				ledgerWriter.Write([]string{fmt.Sprintf("LD-%d", i), refID, fmt.Sprintf("%.2f", amount), "INR", dateStr, "Sale Orphan"})
-			} else if subType == 1 { // Orphan in gateway
-				gwWriter.Write([]string{fmt.Sprintf("GW-%d", i), refID, fmt.Sprintf("%.2f", amount), "INR", dateStr, "Payment Orphan"})
-			} else if subType == 2 { // Duplicate REF
-				gwWriter.Write([]string{fmt.Sprintf("GW-%d-1", i), refID, fmt.Sprintf("%.2f", amount), "INR", dateStr, "Payment 1"})
-				gwWriter.Write([]string{fmt.Sprintf("GW-%d-2", i), refID, fmt.Sprintf("%.2f", amount), "INR", dateStr, "Payment 2"})
-				bankWriter.Write([]string{fmt.Sprintf("BK-%d", i), refID, fmt.Sprintf("%.2f", amount), "INR", dateStr, "Credit"})
-				ledgerWriter.Write([]string{fmt.Sprintf("LD-%d", i), refID, fmt.Sprintf("%.2f", amount), "INR", dateStr, "Sale"})
-			} else if subType == 3 { // Malformed
-				// We'll write a deliberately malformed row directly without the CSV writer to break parsing later.
-				gwWriter.Write([]string{fmt.Sprintf("GW-%d", i), refID, "NOT_A_NUMBER", "INR", dateStr, "Bad Record"})
-				bankWriter.Write([]string{fmt.Sprintf("BK-%d", i), refID, fmt.Sprintf("%.2f", amount), "INR", dateStr, "Credit"})
-				ledgerWriter.Write([]string{fmt.Sprintf("LD-%d", i), refID, fmt.Sprintf("%.2f", amount), "INR", dateStr, "Sale"})
-			}
+		// 20: Amount Mismatch beyond tolerance (leads to AMOUNT_MISMATCH exception)
+		case i == 20:
+			gwWriter.Write([]string{fmt.Sprintf("GW-%d", i), refID, fmt.Sprintf("%.2f", amount*1.25), "INR", dateStr, "Overcharged Gateway Entry"})
+			bankWriter.Write([]string{fmt.Sprintf("BK-%d", i), refID, fmt.Sprintf("%.2f", amount), "INR", dateStr, "Bank Credit"})
+			ledgerWriter.Write([]string{fmt.Sprintf("LD-%d", i), refID, fmt.Sprintf("%.2f", amount), "INR", dateStr, "General Ledger Sale"})
+
+		// 21: Date Drift beyond tolerance (leads to DATE_DRIFT exception)
+		case i == 21:
+			excessDateStr := currentDate.AddDate(0, 0, 7).Format(time.RFC3339) // 7 days drift
+			gwWriter.Write([]string{fmt.Sprintf("GW-%d", i), refID, fmt.Sprintf("%.2f", amount), "INR", excessDateStr, "Stale Settlement"})
+			bankWriter.Write([]string{fmt.Sprintf("BK-%d", i), refID, fmt.Sprintf("%.2f", amount), "INR", excessDateStr, "Stale Bank Credit"})
+			ledgerWriter.Write([]string{fmt.Sprintf("LD-%d", i), refID, fmt.Sprintf("%.2f", amount), "INR", dateStr, "General Ledger Sale"})
+
+		// 22: Duplicate Reference ID (leads to DUPLICATE_REF exception)
+		case i == 22:
+			gwWriter.Write([]string{fmt.Sprintf("GW-%d-1", i), refID, fmt.Sprintf("%.2f", amount), "INR", dateStr, "Duplicate Gateway Batch 1"})
+			gwWriter.Write([]string{fmt.Sprintf("GW-%d-2", i), refID, fmt.Sprintf("%.2f", amount), "INR", dateStr, "Duplicate Gateway Batch 2"})
+			bankWriter.Write([]string{fmt.Sprintf("BK-%d", i), refID, fmt.Sprintf("%.2f", amount), "INR", dateStr, "Bank Credit"})
+			ledgerWriter.Write([]string{fmt.Sprintf("LD-%d", i), refID, fmt.Sprintf("%.2f", amount), "INR", dateStr, "General Ledger Sale"})
+
+		// 23: Orphan record in Ledger only (leads to NO_COUNTERPART exception)
+		case i == 23:
+			ledgerWriter.Write([]string{fmt.Sprintf("LD-%d", i), refID, fmt.Sprintf("%.2f", amount), "INR", dateStr, "Unsettled Ledger Sale"})
+
+		// 24: Orphan record in Gateway only (leads to NO_COUNTERPART exception)
+		case i == 24:
+			gwWriter.Write([]string{fmt.Sprintf("GW-%d", i), refID, fmt.Sprintf("%.2f", amount), "INR", dateStr, "Unrecorded Gateway Inflow"})
+
+		// 25: Malformed Date Row (leads to MALFORMED_INPUT exception caught at ingest)
+		case i == 25:
+			gwWriter.Write([]string{fmt.Sprintf("GW-%d", i), refID, fmt.Sprintf("%.2f", amount), "INR", "INVALID_DATE_FORMAT_2023-99-99", "Corrupted Date Entry"})
+			bankWriter.Write([]string{fmt.Sprintf("BK-%d", i), refID, fmt.Sprintf("%.2f", amount), "INR", dateStr, "Bank Credit"})
+			ledgerWriter.Write([]string{fmt.Sprintf("LD-%d", i), refID, fmt.Sprintf("%.2f", amount), "INR", dateStr, "General Ledger Sale"})
 		}
-
-		baseDate = baseDate.AddDate(0, 0, 1)
 	}
 
-	// Make sure we write one malformed date row manually just in case
-	gwWriter.Write([]string{"GW-MALF", "REF-MALF", "100.00", "INR", "bad-date-format", "Malformed Row"})
-	
 	return nil
 }
