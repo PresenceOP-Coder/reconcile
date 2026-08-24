@@ -16,5 +16,9 @@ dist/
 # Dependency directories (remove the comment below to include it)
 # vendor/
 
-# Audit output logs
+# Audit output logs and generated reports
 audit.jsonl
+report.html
+summary.json
+exceptions.csv
+matches.csv
