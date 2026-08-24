@@ -21,10 +21,8 @@ func ParseCSV(sourceName, filePath string) ([]model.Record, []model.Exception, e
 	defer file.Close()
 
 	reader := csv.NewReader(file)
-	// Allow variable number of fields so we can catch row-length anomalies cleanly as exceptions
 	reader.FieldsPerRecord = -1
 
-	// Read header
 	header, err := reader.Read()
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not read CSV header in %s: %w", filePath, err)
@@ -76,7 +74,6 @@ func ParseCSV(sourceName, filePath string) ([]model.Record, []model.Exception, e
 		dateStr := strings.TrimSpace(row[4])
 		desc := strings.TrimSpace(row[5])
 
-		// Validate Amount
 		amount, err := strconv.ParseFloat(amountStr, 64)
 		if err != nil {
 			exceptions = append(exceptions, model.Exception{
@@ -93,7 +90,6 @@ func ParseCSV(sourceName, filePath string) ([]model.Record, []model.Exception, e
 			continue
 		}
 
-		// Validate Date
 		parsedDate, err := parseDate(dateStr)
 		if err != nil {
 			exceptions = append(exceptions, model.Exception{

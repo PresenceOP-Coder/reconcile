@@ -46,7 +46,7 @@ func ExactMatchPass(records []model.Record, expectedSources []string, cfg rules.
 			continue
 		}
 
-		// Verify amounts match exactly (within 0.001 to handle float representation)
+		// Check amounts match (allowing for float representation)
 		firstAmt := group[0].Amount
 		amountsMatch := true
 		for _, rec := range group[1:] {
@@ -59,7 +59,6 @@ func ExactMatchPass(records []model.Record, expectedSources []string, cfg rules.
 			continue
 		}
 
-		// Verify dates match within date_bucket_days
 		var minDate, maxDate time.Time
 		for i, rec := range group {
 			if i == 0 || rec.Date.Before(minDate) {
@@ -75,7 +74,6 @@ func ExactMatchPass(records []model.Record, expectedSources []string, cfg rules.
 			continue
 		}
 
-		// Exact match found!
 		matchID := fmt.Sprintf("MATCH-EXACT-%s", refID)
 		matches = append(matches, model.MatchResult{
 			MatchID:     matchID,
@@ -90,7 +88,6 @@ func ExactMatchPass(records []model.Record, expectedSources []string, cfg rules.
 		}
 	}
 
-	// Collect remaining unmatched records for fuzzy pass or exception classification
 	var unmatchedRecords []model.Record
 	for _, rec := range records {
 		if !matchedRecordIDs[rec.ID] {

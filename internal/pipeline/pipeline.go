@@ -43,7 +43,7 @@ func Run(ctx context.Context, cfg *rules.Config, opts Options) (*PipelineResult,
 	resultChan := make(chan sourceResult, len(cfg.Sources))
 	var wg sync.WaitGroup
 
-	// Phase 1: Ingest all sources concurrently
+	// Concurrent ingestion across all configured sources
 	for _, src := range cfg.Sources {
 		wg.Add(1)
 		go func(s rules.SourceConfig) {
@@ -86,7 +86,7 @@ func Run(ctx context.Context, cfg *rules.Config, opts Options) (*PipelineResult,
 		totalRecordsRead += len(res.records) + len(res.exceptions)
 	}
 
-	// Phase 2: Exact Match Pass
+	// 1. Exact match pass
 	exactMatches, unmatchedAfterExact, duplicateExceptions := match.ExactMatchPass(
 		allRecords,
 		expectedSources,
@@ -97,7 +97,7 @@ func Run(ctx context.Context, cfg *rules.Config, opts Options) (*PipelineResult,
 	var finalMatches []model.MatchResult = exactMatches
 	var unmatchedAfterFuzzy []model.Record = unmatchedAfterExact
 
-	// Phase 3: Fuzzy Match Pass (if not exact-only)
+	// 2. Fuzzy match pass (optional)
 	if !opts.ExactOnly {
 		fuzzyMatches, leftovers := match.FuzzyMatchPass(
 			unmatchedAfterExact,
@@ -108,7 +108,7 @@ func Run(ctx context.Context, cfg *rules.Config, opts Options) (*PipelineResult,
 		unmatchedAfterFuzzy = leftovers
 	}
 
-	// Phase 4: Classify remaining unmatched records into typed exceptions
+	// 3. Exception classification for remaining records
 	classifiedExceptions := match.ClassifyExceptions(
 		unmatchedAfterFuzzy,
 		allRecords,

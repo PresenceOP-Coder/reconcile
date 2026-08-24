@@ -31,7 +31,6 @@ func WriteAuditLog(outputPath string, result *pipeline.PipelineResult) (int, err
 	encoder := json.NewEncoder(file)
 	linesWritten := 0
 
-	// 1. Write matched records
 	for _, match := range result.Matches {
 		for _, rec := range match.Records {
 			var counterparts []string
@@ -58,7 +57,6 @@ func WriteAuditLog(outputPath string, result *pipeline.PipelineResult) (int, err
 		}
 	}
 
-	// 2. Write exception records
 	for _, exc := range result.Exceptions {
 		entry := AuditEntry{
 			RecordID:   exc.Record.ID,

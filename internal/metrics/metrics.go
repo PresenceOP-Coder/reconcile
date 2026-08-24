@@ -61,7 +61,7 @@ func Compute(res *pipeline.PipelineResult) Summary {
 		s.ExceptionRatePct = (float64(s.ExceptionRecords) / float64(s.TotalRecords)) * 100.0
 	}
 
-	// Invariant check: matched records + exceptions must equal total input
+	// Verification invariant: total records must equal sum of matched and exceptions
 	s.CountInvariantValid = (s.MatchedRecords + s.ExceptionRecords) == s.TotalRecords
 
 	return s

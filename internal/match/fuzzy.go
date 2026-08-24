@@ -76,11 +76,9 @@ func FuzzyMatchPass(records []model.Record, expectedSources []string, cfg rules.
 		}
 
 		if maxDiffPct > cfg.AmountTolerancePct {
-			// Amount difference exceeds tolerance
 			continue
 		}
 
-		// Calculate date window across all records in the group
 		var minDate, maxDate time.Time
 		for i, rec := range group {
 			if i == 0 || rec.Date.Before(minDate) {
@@ -93,13 +91,10 @@ func FuzzyMatchPass(records []model.Record, expectedSources []string, cfg rules.
 
 		dateDiffDays := maxDate.Sub(minDate).Hours() / 24.0
 		if dateDiffDays > float64(cfg.DateWindowDays) {
-			// Date drift exceeds tolerance
 			continue
 		}
 
-		// Calculate confidence score based on tolerance utilization:
-		// Utilization = 0.0 -> Confidence = 1.0
-		// Utilization = 1.0 (at tolerance edge) -> Confidence = 0.70
+		// Calculate confidence based on tolerance consumption
 		var amtUtil float64
 		if cfg.AmountTolerancePct > 0 {
 			amtUtil = maxDiffPct / cfg.AmountTolerancePct
@@ -114,7 +109,6 @@ func FuzzyMatchPass(records []model.Record, expectedSources []string, cfg rules.
 		confidence = math.Round(confidence*1000) / 1000.0
 
 		if confidence < cfg.MinConfidence {
-			// Below minimum acceptable confidence threshold
 			continue
 		}
 
@@ -139,7 +133,6 @@ func FuzzyMatchPass(records []model.Record, expectedSources []string, cfg rules.
 		_ = baseAmt
 	}
 
-	// Collect remaining unmatched records
 	var unmatchedRecords []model.Record
 	for _, rec := range records {
 		if !matchedRecordIDs[rec.ID] {
