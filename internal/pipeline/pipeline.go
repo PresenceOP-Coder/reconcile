@@ -3,6 +3,7 @@ package pipeline
 import (
 	"context"
 	"fmt"
+	"sort"
 	"sync"
 
 	"github.com/reconcile/internal/ingest"
@@ -11,16 +12,18 @@ import (
 	"github.com/reconcile/internal/rules"
 )
 
+// Options holds configuration for the pipeline execution.
 type Options struct {
 	ExactOnly bool
 }
 
+// PipelineResult aggregates the final outcomes of the pipeline.
 type PipelineResult struct {
-	Matches             []model.MatchResult
-	Exceptions          []model.Exception
-	TotalRecordsRead    int
-	RecordsBySource     map[string]int
-	ExceptionsBySource  map[string]int
+	Matches            []model.MatchResult
+	Exceptions         []model.Exception
+	TotalRecordsRead   int
+	RecordsBySource    map[string]int
+	ExceptionsBySource map[string]int
 }
 
 type sourceResult struct {
@@ -93,19 +96,19 @@ func Run(ctx context.Context, cfg *rules.Config, opts Options) (*PipelineResult,
 		cfg.Matching.Exact,
 	)
 	allExceptions = append(allExceptions, duplicateExceptions...)
+	finalMatches := exactMatches
 
-	var finalMatches []model.MatchResult = exactMatches
-	var unmatchedAfterFuzzy []model.Record = unmatchedAfterExact
+	unmatchedAfterFuzzy := unmatchedAfterExact
 
-	// 2. Fuzzy match pass (optional)
-	if !opts.ExactOnly {
-		fuzzyMatches, leftovers := match.FuzzyMatchPass(
+	// 2. Fuzzy match pass (if enabled)
+	if !opts.ExactOnly && cfg.Matching.Fuzzy.AmountTolerancePct > 0 {
+		var fuzzyMatches []model.MatchResult
+		fuzzyMatches, unmatchedAfterFuzzy = match.FuzzyMatchPass(
 			unmatchedAfterExact,
 			expectedSources,
 			cfg.Matching.Fuzzy,
 		)
 		finalMatches = append(finalMatches, fuzzyMatches...)
-		unmatchedAfterFuzzy = leftovers
 	}
 
 	// 3. Exception classification for remaining records
@@ -115,11 +118,19 @@ func Run(ctx context.Context, cfg *rules.Config, opts Options) (*PipelineResult,
 		expectedSources,
 		cfg.Matching,
 	)
-	allExceptions = append(allExceptions, classifiedExceptions...)
+	finalExceptions := append(allExceptions, classifiedExceptions...)
+
+	// Sort matches and exceptions deterministically
+	sort.Slice(finalMatches, func(i, j int) bool {
+		return finalMatches[i].MatchID < finalMatches[j].MatchID
+	})
+	sort.Slice(finalExceptions, func(i, j int) bool {
+		return finalExceptions[i].Record.ID < finalExceptions[j].Record.ID
+	})
 
 	return &PipelineResult{
 		Matches:            finalMatches,
-		Exceptions:         allExceptions,
+		Exceptions:         finalExceptions,
 		TotalRecordsRead:   totalRecordsRead,
 		RecordsBySource:    recordsBySource,
 		ExceptionsBySource: exceptionsBySource,

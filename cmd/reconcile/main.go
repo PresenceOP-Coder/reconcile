@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/reconcile/internal/agent"
 	"github.com/reconcile/internal/audit"
 	"github.com/reconcile/internal/export"
 	"github.com/reconcile/internal/ingest"
@@ -29,6 +30,8 @@ func main() {
 		runReconcile(os.Args[2:])
 	case "benchmark":
 		runBenchmark(os.Args[2:])
+	case "agent":
+		runAgent(os.Args[2:])
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n\n", os.Args[1])
 		printUsage()
@@ -189,6 +192,56 @@ func runBenchmark(args []string) {
 	fmt.Printf("  Throughput     : %.0f records/sec\n\n", throughput)
 }
 
+func runAgent(args []string) {
+	cmd := flag.NewFlagSet("agent", flag.ExitOnError)
+	rulesPath := cmd.String("rules", "rules.yaml", "path to rules.yaml configuration")
+	outPath := cmd.String("out", "resolution_report.md", "path to save AI report")
+	cmd.Parse(args)
+
+	apiKey := os.Getenv("GEMINI_API_KEY")
+	if apiKey == "" {
+		fmt.Fprintln(os.Stderr, "Error: GEMINI_API_KEY environment variable is required.")
+		fmt.Fprintln(os.Stderr, "Get one at https://aistudio.google.com/app/apikey")
+		os.Exit(1)
+	}
+
+	fmt.Println("Running reconciliation pipeline to gather exceptions...")
+	cfg, err := rules.Load(*rulesPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "rules load failed: %v\n", err)
+		os.Exit(1)
+	}
+
+	ctx := context.Background()
+	result, err := pipeline.Run(ctx, cfg, pipeline.Options{})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "pipeline failed: %v\n", err)
+		os.Exit(1)
+	}
+
+	if len(result.Exceptions) == 0 {
+		fmt.Println("No exceptions found! Nothing for the AI agent to do.")
+		return
+	}
+
+	fmt.Printf("Found %d exceptions. Pinging AI Finance Controller (Gemini)...\n", len(result.Exceptions))
+	
+	report, err := agent.GenerateResolutionReport(ctx, apiKey, result.Exceptions)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "AI agent failed: %v\n", err)
+		os.Exit(1)
+	}
+
+	if err := os.WriteFile(*outPath, []byte(report), 0644); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to save report: %v\n", err)
+	}
+
+	fmt.Printf("\n================ AI RESOLUTION REPORT ================\n\n")
+	fmt.Println(report)
+	fmt.Printf("\n======================================================\n")
+	fmt.Printf("✓ Saved full report to %s\n", *outPath)
+}
+
 func printUsage() {
 	fmt.Println("reconcile — multi-source financial reconciliation tool")
 	fmt.Println("\nUsage:")
@@ -211,4 +264,8 @@ func printUsage() {
 	fmt.Println("    -records <n>      number of transaction groups (default: 10000)")
 	fmt.Println("    -rules <file>     rules YAML path (default: rules.yaml)")
 	fmt.Println("    -no-cleanup       keep generated files after run")
+	fmt.Println()
+	fmt.Println("  agent             use AI to resolve reconciliation exceptions (requires GEMINI_API_KEY)")
+	fmt.Println("    -rules <file>     rules YAML path (default: rules.yaml)")
+	fmt.Println("    -out <file>       path to save AI report (default: resolution_report.md)")
 }
