@@ -1,0 +1,14 @@
+matching:
+  exact:
+    date_bucket_days: 0
+  fuzzy:
+    amount_tolerance_pct: 1.5
+    date_window_days: 3
+    min_confidence: 0.75
+sources:
+  - name: gateway
+    file: testdata_adversarial2/gateway_settlement.csv
+  - name: bank
+    file: testdata_adversarial2/bank_statement.csv
+  - name: ledger
+    file: testdata_adversarial2/internal_ledger.csv

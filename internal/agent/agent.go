@@ -27,10 +27,8 @@ func GenerateResolutionReport(ctx context.Context, apiKey string, exceptions []m
 	}
 	defer client.Close()
 
-	// Use gemini-1.5-flash as it is fast and excellent for structured reasoning
-	gemini := client.GenerativeModel("gemini-1.5-flash")
+	gemini := client.GenerativeModel("gemini-3.5-flash")
 	
-	// Configure the model behavior
 	gemini.SystemInstruction = &genai.Content{
 		Parts: []genai.Part{
 			genai.Text(`You are an AI Finance Controller. Your job is to review automated reconciliation exceptions and draft a clear, actionable resolution report for the finance operations team.
@@ -43,13 +41,10 @@ Format your response as a professional Markdown report. Group similar issues tog
 		},
 	}
 
-	// Prepare the prompt payload
 	var promptBuilder strings.Builder
 	promptBuilder.WriteString(fmt.Sprintf("Please review the following %d reconciliation exceptions:\n\n", len(exceptions)))
 
 	for i, exc := range exceptions {
-		// Limit to 50 exceptions to avoid overwhelming the context if it's a huge batch,
-		// though 1.5-flash can handle millions of tokens.
 		if i >= 50 {
 			promptBuilder.WriteString("\n... and more exceptions omitted for brevity.\n")
 			break
@@ -68,7 +63,6 @@ Format your response as a professional Markdown report. Group similar issues tog
 		return "", fmt.Errorf("no response generated from AI")
 	}
 
-	// Extract the text part
 	var reportBuilder strings.Builder
 	for _, part := range resp.Candidates[0].Content.Parts {
 		if text, ok := part.(genai.Text); ok {
