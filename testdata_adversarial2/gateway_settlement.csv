@@ -1,6 +1,0 @@
-ID,RefID,Amount,Currency,Date,Description
-GW-0,SAME-REF,-100.00,INR,2023-10-01T10:00:00Z,Negative amount
-GW-1,SAME-REF,-101.00,INR,2023-10-01T10:00:00Z,Negative amount
-GW-2,SAME-REF,-102.00,INR,2023-10-01T10:00:00Z,Negative amount
-GW-3,SAME-REF,-103.00,INR,2023-10-01T10:00:00Z,Negative amount
-GW-4,SAME-REF,-104.00,INR,2023-10-01T10:00:00Z,Negative amount
