@@ -16,6 +16,7 @@ import (
 	"github.com/reconcile/internal/pattern"
 	"github.com/reconcile/internal/pipeline"
 	"github.com/reconcile/internal/rules"
+	"github.com/reconcile/internal/server"
 )
 
 func main() {
@@ -35,6 +36,8 @@ func main() {
 		runAgent(os.Args[2:])
 	case "why":
 		runWhy(os.Args[2:])
+	case "serve":
+		runServe(os.Args[2:])
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n\n", os.Args[1])
 		printUsage()
@@ -279,6 +282,9 @@ func printUsage() {
 	fmt.Println("  why               ask AI to explain a specific record in plain English (requires GEMINI_API_KEY)")
 	fmt.Println("    -record <id>      the record ID to look up (e.g. GW-20)")
 	fmt.Println("    -audit <file>     audit log to read from (default: audit.jsonl)")
+	fmt.Println()
+	fmt.Println("  serve             start the web UI (optional: requires GEMINI_API_KEY for AI features)")
+	fmt.Println("    -port <port>      port to listen on (default: 8080)")
 }
 
 func runWhy(args []string) {
@@ -310,4 +316,21 @@ func runWhy(args []string) {
 	fmt.Printf("\n[ AI explanation for record %s ]\n\n", *recordID)
 	fmt.Println(explanation)
 	fmt.Println()
+}
+
+func runServe(args []string) {
+	cmd := flag.NewFlagSet("serve", flag.ExitOnError)
+	port := cmd.String("port", "8080", "port to serve on")
+	cmd.Parse(args)
+
+	apiKey := os.Getenv("GEMINI_API_KEY")
+	if apiKey == "" {
+		fmt.Println("Warning: GEMINI_API_KEY is not set. AI features in the UI will be disabled.")
+	}
+
+	srv := server.New(apiKey)
+	if err := srv.Start(":" + *port); err != nil {
+		fmt.Fprintf(os.Stderr, "server error: %v\n", err)
+		os.Exit(1)
+	}
 }
