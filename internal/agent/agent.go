@@ -8,9 +8,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/google/generative-ai-go/genai"
+	"google.golang.org/genai"
 	"github.com/reconcile/internal/model"
-	"google.golang.org/api/option"
 )
 
 // GenerateResolutionReport takes a list of reconciliation exceptions and
@@ -24,25 +23,21 @@ func GenerateResolutionReport(ctx context.Context, apiKey string, exceptions []m
 		return "No exceptions found! The books are perfectly balanced.", nil
 	}
 
-	client, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
+	client, err := genai.NewClient(ctx, &genai.ClientConfig{
+		APIKey:  apiKey,
+		Backend: genai.BackendGeminiAPI,
+	})
 	if err != nil {
 		return "", fmt.Errorf("failed to create genai client: %w", err)
 	}
-	defer client.Close()
 
-	gemini := client.GenerativeModel("gemini-3.5-flash")
-
-	gemini.SystemInstruction = &genai.Content{
-		Parts: []genai.Part{
-			genai.Text(`You are an AI Finance Controller. Your job is to review automated reconciliation exceptions and draft a clear, actionable resolution report for the finance operations team.
+	systemInstruction := `You are an AI Finance Controller. Your job is to review automated reconciliation exceptions and draft a clear, actionable resolution report for the finance operations team.
 
 For each exception type:
 1. Explain briefly what went wrong.
 2. Provide a specific, actionable next step (e.g., "Email Stripe support", "Verify manual ledger entry with sales").
 
-Format your response as a professional Markdown report. Group similar issues together. Be concise and authoritative.`),
-		},
-	}
+Format your response as a professional Markdown report. Group similar issues together. Be concise and authoritative.`
 
 	var promptBuilder strings.Builder
 	promptBuilder.WriteString(fmt.Sprintf("Please review the following %d reconciliation exceptions:\n\n", len(exceptions)))
@@ -56,23 +51,16 @@ Format your response as a professional Markdown report. Group similar issues tog
 			exc.Record.ID, exc.Record.Source, exc.ReasonCode, exc.Detail))
 	}
 
-	resp, err := gemini.GenerateContent(ctx, genai.Text(promptBuilder.String()))
+	config := &genai.GenerateContentConfig{
+		SystemInstruction: &genai.Content{Parts: []*genai.Part{{Text: systemInstruction}}},
+	}
+
+	resp, err := client.Models.GenerateContent(ctx, "gemini-3.5-flash", genai.Text(promptBuilder.String()), config)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate content: %w", err)
 	}
 
-	if len(resp.Candidates) == 0 || len(resp.Candidates[0].Content.Parts) == 0 {
-		return "", fmt.Errorf("no response generated from AI")
-	}
-
-	var reportBuilder strings.Builder
-	for _, part := range resp.Candidates[0].Content.Parts {
-		if text, ok := part.(genai.Text); ok {
-			reportBuilder.WriteString(string(text))
-		}
-	}
-
-	return reportBuilder.String(), nil
+	return resp.Text(), nil
 }
 
 // ExplainRecord reads an audit log file, finds the entry for the given recordID,
@@ -88,17 +76,15 @@ func ExplainRecord(ctx context.Context, apiKey, auditPath, recordID string) (str
 		return "", err
 	}
 
-	client, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
+	client, err := genai.NewClient(ctx, &genai.ClientConfig{
+		APIKey:  apiKey,
+		Backend: genai.BackendGeminiAPI,
+	})
 	if err != nil {
 		return "", fmt.Errorf("failed to create genai client: %w", err)
 	}
-	defer client.Close()
 
-	gemini := client.GenerativeModel("gemini-3.5-flash")
-
-	gemini.SystemInstruction = &genai.Content{
-		Parts: []genai.Part{
-			genai.Text(`You are an AI Finance Controller analyzing a reconciliation audit log.
+	systemInstruction := `You are an AI Finance Controller analyzing a reconciliation audit log.
 Your job is to explain, in plain English, exactly what happened to a specific record.
 
 Rules:
@@ -106,8 +92,10 @@ Rules:
 - Explain the outcome (matched / exception) in simple terms a non-technical finance analyst can understand.
 - If it was an exception, say what the finance team should do next.
 - If it was a match, confirm what sources it was matched with and with what confidence.
-- Be concise: 3-5 sentences maximum.`),
-		},
+- Be concise: 3-5 sentences maximum.`
+
+	config := &genai.GenerateContentConfig{
+		SystemInstruction: &genai.Content{Parts: []*genai.Part{{Text: systemInstruction}}},
 	}
 
 	prompt := fmt.Sprintf(
@@ -115,22 +103,12 @@ Rules:
 		recordID, entry,
 	)
 
-	resp, err := gemini.GenerateContent(ctx, genai.Text(prompt))
+	resp, err := client.Models.GenerateContent(ctx, "gemini-3.5-flash", genai.Text(prompt), config)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate explanation: %w", err)
 	}
 
-	if len(resp.Candidates) == 0 || len(resp.Candidates[0].Content.Parts) == 0 {
-		return "", fmt.Errorf("no explanation generated")
-	}
-
-	var sb strings.Builder
-	for _, part := range resp.Candidates[0].Content.Parts {
-		if text, ok := part.(genai.Text); ok {
-			sb.WriteString(string(text))
-		}
-	}
-	return sb.String(), nil
+	return resp.Text(), nil
 }
 
 // findAuditEntry scans the JSONL audit log and returns the pretty-printed JSON
