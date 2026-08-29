@@ -332,7 +332,7 @@ export default function App() {
                   <thead>
                     <tr>
                       {['Record ID', 'Source', 'Ref ID', 'Amount', 'Reason', 'Detail', ''].map(h => (
-                        <th key={h} className="text-left text-[10px] font-semibold tracking-[0.07em] uppercase text-paper-muted px-3 py-2 border-b border-paper-ink bg-paper-surface sticky top-[56px] z-10">{h}</th>
+                        <th key={h} className="text-left text-[10px] font-semibold tracking-[0.07em] uppercase text-paper-muted px-3 py-2 border-b border-paper-ink bg-paper-surface sticky top-0 z-10">{h}</th>
                       ))}
                     </tr>
                   </thead>
