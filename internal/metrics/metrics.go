@@ -6,8 +6,13 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/reconcile/internal/pattern"
 	"github.com/reconcile/internal/pipeline"
 )
+
+// SystemicAlert is re-exported from pattern for use in PrintAlerts.
+type SystemicAlert = pattern.SystemicAlert
+
 
 type Summary struct {
 	TotalRecords        int
@@ -109,6 +114,23 @@ func PrintSummary(w io.Writer, s Summary) {
 	} else {
 		fmt.Fprintf(w, "  ✗ Integrity Invariant VIOLATED: %d matched + %d exceptions != %d total\n",
 			s.MatchedRecords, s.ExceptionRecords, s.TotalRecords)
+	}
+	fmt.Fprintln(w, divider)
+	fmt.Fprintln(w, "")
+}
+
+// PrintAlerts renders systemic pattern alerts to the writer. A no-op if alerts is empty.
+func PrintAlerts(w io.Writer, alerts []SystemicAlert) {
+	if len(alerts) == 0 {
+		return
+	}
+	divider := strings.Repeat("=", 68)
+	fmt.Fprintln(w, divider)
+	fmt.Fprintln(w, "  ⚠  SYSTEMIC ALERTS")
+	fmt.Fprintln(w, divider)
+	for _, a := range alerts {
+		fmt.Fprintf(w, "  [%s / %s] count=%d (threshold=%d)\n", a.ReasonCode, a.Source, a.Count, a.Threshold)
+		fmt.Fprintf(w, "  → %s\n\n", a.Message)
 	}
 	fmt.Fprintln(w, divider)
 	fmt.Fprintln(w, "")

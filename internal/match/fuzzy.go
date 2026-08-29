@@ -45,12 +45,17 @@ func FuzzyMatchPass(records []model.Record, expectedSources []string, cfg rules.
 			continue
 		}
 
-		// Calculate total amount per source (handles 1:1 rounding drift & 1:N split settlements)
+		// Calculate total amount per source in base currency (INR).
+		// This makes the tolerance check currency-aware for multi-currency batches.
+		fx := cfg.FXRates
+		if fx == nil {
+			fx = rules.DefaultFXRates
+		}
 		sourceSums := make(map[string]float64)
 		for src, recs := range bySource {
 			var sum float64
 			for _, r := range recs {
-				sum += r.Amount
+				sum += fx.ToBase(r.Amount, r.Currency)
 			}
 			sourceSums[src] = sum
 		}

@@ -17,9 +17,10 @@ type ExactConfig struct {
 }
 
 type FuzzyConfig struct {
-	AmountTolerancePct float64 `yaml:"amount_tolerance_pct"`
-	DateWindowDays     int     `yaml:"date_window_days"`
-	MinConfidence      float64 `yaml:"min_confidence"`
+	AmountTolerancePct float64  `yaml:"amount_tolerance_pct"`
+	DateWindowDays     int      `yaml:"date_window_days"`
+	MinConfidence      float64  `yaml:"min_confidence"`
+	FXRates            FXRates  `yaml:"-"` // populated at runtime, not from YAML
 }
 
 type MatchingConfig struct {
@@ -28,8 +29,9 @@ type MatchingConfig struct {
 }
 
 type Config struct {
-	Matching MatchingConfig `yaml:"matching"`
-	Sources  []SourceConfig `yaml:"sources"`
+	Matching   MatchingConfig `yaml:"matching"`
+	Sources    []SourceConfig `yaml:"sources"`
+	FXRatesFile string        `yaml:"fx_rates_file"`
 }
 
 // Load loads and validates the reconciliation rules from a YAML file.
@@ -47,6 +49,12 @@ func Load(path string) (*Config, error) {
 	if err := validate(&cfg); err != nil {
 		return nil, fmt.Errorf("invalid rules configuration: %w", err)
 	}
+
+	fx, err := LoadFXRates(cfg.FXRatesFile)
+	if err != nil {
+		return nil, fmt.Errorf("fx_rates: %w", err)
+	}
+	cfg.Matching.Fuzzy.FXRates = fx
 
 	return &cfg, nil
 }

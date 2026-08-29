@@ -13,6 +13,7 @@ import (
 	"github.com/reconcile/internal/export"
 	"github.com/reconcile/internal/ingest"
 	"github.com/reconcile/internal/metrics"
+	"github.com/reconcile/internal/pattern"
 	"github.com/reconcile/internal/pipeline"
 	"github.com/reconcile/internal/rules"
 )
@@ -32,6 +33,8 @@ func main() {
 		runBenchmark(os.Args[2:])
 	case "agent":
 		runAgent(os.Args[2:])
+	case "why":
+		runWhy(os.Args[2:])
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n\n", os.Args[1])
 		printUsage()
@@ -82,6 +85,10 @@ func runReconcile(args []string) {
 
 	summary := metrics.Compute(result)
 	metrics.PrintSummary(os.Stdout, summary)
+
+	alerts := pattern.Detect(result.Exceptions, 3)
+	metrics.PrintAlerts(os.Stdout, alerts)
+
 	fmt.Printf("Execution time: %v\n", elapsed)
 
 	if *auditPath != "" {
@@ -268,4 +275,39 @@ func printUsage() {
 	fmt.Println("  agent             use AI to resolve reconciliation exceptions (requires GEMINI_API_KEY)")
 	fmt.Println("    -rules <file>     rules YAML path (default: rules.yaml)")
 	fmt.Println("    -out <file>       path to save AI report (default: resolution_report.md)")
+	fmt.Println()
+	fmt.Println("  why               ask AI to explain a specific record in plain English (requires GEMINI_API_KEY)")
+	fmt.Println("    -record <id>      the record ID to look up (e.g. GW-20)")
+	fmt.Println("    -audit <file>     audit log to read from (default: audit.jsonl)")
+}
+
+func runWhy(args []string) {
+	cmd := flag.NewFlagSet("why", flag.ExitOnError)
+	recordID := cmd.String("record", "", "record ID to explain (required)")
+	auditPath := cmd.String("audit", "audit.jsonl", "path to audit.jsonl")
+	cmd.Parse(args)
+
+	if *recordID == "" {
+		fmt.Fprintln(os.Stderr, "Error: -record <id> is required.")
+		fmt.Fprintln(os.Stderr, "Example: reconcile why -record GW-20")
+		os.Exit(1)
+	}
+
+	apiKey := os.Getenv("GEMINI_API_KEY")
+	if apiKey == "" {
+		fmt.Fprintln(os.Stderr, "Error: GEMINI_API_KEY environment variable is required.")
+		fmt.Fprintln(os.Stderr, "Get one at https://aistudio.google.com/app/apikey")
+		os.Exit(1)
+	}
+
+	ctx := context.Background()
+	explanation, err := agent.ExplainRecord(ctx, apiKey, *auditPath, *recordID)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("\n[ AI explanation for record %s ]\n\n", *recordID)
+	fmt.Println(explanation)
+	fmt.Println()
 }
