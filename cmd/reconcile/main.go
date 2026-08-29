@@ -17,9 +17,14 @@ import (
 	"github.com/reconcile/internal/pipeline"
 	"github.com/reconcile/internal/rules"
 	"github.com/reconcile/internal/server"
+	
+	"github.com/joho/godotenv"
 )
 
 func main() {
+	// Attempt to load from .env file if it exists
+	_ = godotenv.Load()
+
 	if len(os.Args) < 2 {
 		printUsage()
 		os.Exit(1)
