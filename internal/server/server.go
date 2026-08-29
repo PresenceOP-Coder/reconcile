@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	_ "embed"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -20,10 +19,8 @@ import (
 	"github.com/reconcile/internal/pattern"
 	"github.com/reconcile/internal/pipeline"
 	"github.com/reconcile/internal/rules"
+	"github.com/reconcile/web"
 )
-
-//go:embed static/index.html
-var indexHTML []byte
 
 // Server holds the last pipeline run in memory so the AI handlers can
 // reference it without re-running the pipeline.
@@ -104,22 +101,22 @@ func New(apiKey string) *Server {
 
 func (s *Server) Start(addr string) error {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", s.handleIndex)
 	mux.HandleFunc("/api/reconcile", s.handleReconcile)
 	mux.HandleFunc("/api/explain", s.handleExplain)
 	mux.HandleFunc("/api/agent", s.handleAgent)
 	mux.HandleFunc("/api/sample", s.handleSample)
+
+	dist, err := web.Dist()
+	if err != nil {
+		return err
+	}
+	mux.Handle("/", http.FileServer(http.FS(dist)))
 
 	fmt.Printf("\n  Reconcile UI  →  http://%s\n\n", addr)
 	return http.ListenAndServe(addr, mux)
 }
 
 // ─── Handlers ────────────────────────────────────────────────────────────────
-
-func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write(indexHTML)
-}
 
 func (s *Server) handleSample(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
