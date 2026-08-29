@@ -1,7 +1,7 @@
-import { useState, useRef } from 'react'
+import { useState } from 'react'
 import { marked } from 'marked'
 import {
-  Upload, Sparkles, CheckCircle2, XCircle, ArrowRight, Activity, Zap, Play, FileText, ChevronDown, ChevronUp, Loader2
+  Upload, Sparkles, CheckCircle2, XCircle, Activity, Play, FileText, ChevronDown, ChevronUp, Loader2
 } from 'lucide-react'
 
 export default function App() {
@@ -133,6 +133,24 @@ export default function App() {
     setFiles({ gateway: null, bank: null, ledger: null })
   }
 
+  const getReasonBadge = (reason) => {
+    const classes = {
+      'AMOUNT_MISMATCH': 'bg-[#FAEEE9] text-semantic-error border-[#E8C4BB]',
+      'DATE_DRIFT': 'bg-[#FDF6EC] text-semantic-warning border-[#E8D4A0]',
+      'DUPLICATE_REF': 'bg-[#EEF2F9] text-[#4A6CA8] border-[#B8C8E8]',
+      'NO_COUNTERPART': 'bg-[#F0EEF6] text-[#6A5A8A] border-[#C8BCE8]',
+      'MALFORMED_INPUT': 'bg-[#F0F0F0] text-[#555] border-[#CCC]',
+    }
+    const color = classes[reason] || 'bg-gray-100 text-gray-700 border-gray-300'
+    return `inline-block font-mono text-[10px] font-medium px-[7px] py-[2px] rounded-[3px] uppercase border ${color}`
+  }
+
+  const getPassBadge = (pass) => {
+    const isExact = pass === 'exact'
+    const color = isExact ? 'bg-[#F0F6F1] text-semantic-success border-[#B4D4BA]' : 'bg-[#FDF6EC] text-semantic-warning border-[#E8D4A0]'
+    return `inline-block font-mono text-[10px] px-[7px] py-[2px] rounded-[3px] uppercase border ${color}`
+  }
+
   // Derived state
   const isReadyToRun = Object.values(files).filter(Boolean).length >= 2
   const exceptions = results?.exceptions || []
@@ -145,240 +163,233 @@ export default function App() {
     return matchFilter && matchSearch
   })
 
+  // Reusable button classes
+  const btnClass = "inline-flex items-center gap-[7px] px-5 py-2.5 border-[1.5px] border-paper-ink rounded-md bg-paper-surface text-paper-ink font-sans text-[13px] font-medium cursor-pointer transition-all hover:bg-paper-ink hover:text-paper-bg hover:shadow-none disabled:opacity-45 disabled:cursor-not-allowed whitespace-nowrap"
+  const btnPrimary = "bg-paper-ink text-paper-bg shadow-hard hover:bg-[#333] hover:shadow-[1px_1px_0_#1A1A1A]"
+  
   return (
     <>
-      <header>
-        <div className="logo">
-          <div className="logo-mark">R</div>
+      <header className="flex items-center justify-between px-8 h-14 bg-paper-surface border-b border-paper-ink sticky top-0 z-[100]">
+        <div className="flex items-center gap-2.5 font-semibold text-[15px] tracking-[-0.3px]">
+          <div className="w-7 h-7 bg-paper-ink rounded-md flex items-center justify-center text-paper-bg font-mono text-xs font-medium shrink-0">R</div>
           reconcile
         </div>
-        <div className="header-meta">AI Finance Controller</div>
-        <div className="status-pill">
-          <div className={`status-dot ${status}`}></div>
+        <div className="text-xs text-paper-muted tracking-[0.04em] uppercase">AI Finance Controller</div>
+        <div className="flex items-center gap-1.5 text-xs text-paper-muted px-2.5 py-1 border border-paper-rule rounded-full font-mono">
+          <div className={`w-[7px] h-[7px] rounded-full ${status === 'running' ? 'bg-semantic-warning animate-[pulse_1s_infinite]' : 'bg-semantic-success'}`}></div>
           <span>{statusText}</span>
         </div>
       </header>
 
-      <main>
+      <main className="max-w-[1100px] mx-auto px-6 pt-10 pb-20">
         {!results ? (
           <section id="uploadSection">
-            <div className="upload-hero">
-              <h1>Multi-source Financial Reconciliation</h1>
-              <p>Upload your source CSV files, configure tolerances, and run the engine.</p>
+            <div className="text-center mb-10">
+              <h1 className="text-[28px] font-semibold tracking-[-0.5px] mb-2">Multi-source Financial Reconciliation</h1>
+              <p className="text-paper-muted text-sm">Upload your source CSV files, configure tolerances, and run the engine.</p>
             </div>
 
-            <button className="btn btn-sample" onClick={runSample} disabled={loading}>
+            <button className={`${btnClass} w-full justify-center mb-3 text-[13px] text-paper-muted border-paper-rule hover:text-paper-ink`} onClick={runSample} disabled={loading}>
               <Play size={14} /> Use Built-in Sample Data (74 records)
             </button>
 
-            <div className="drop-grid">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
               {['gateway', 'bank', 'ledger'].map(source => (
                 <div 
                   key={source}
-                  className={`drop-zone ${files[source] ? 'loaded' : ''}`}
+                  className={`bg-paper-surface border-[1.5px] border-dashed rounded-[10px] py-8 px-5 text-center cursor-pointer transition-all relative ${files[source] ? 'border-solid border-semantic-success bg-[#F0F6F1]' : 'border-[#A09888] hover:border-paper-ink hover:bg-[#F0EDE3]'} [&.drag-over]:border-paper-ink [&.drag-over]:bg-[#F0EDE3]`}
                   onDragOver={e => { e.preventDefault(); e.currentTarget.classList.add('drag-over') }}
                   onDragLeave={e => e.currentTarget.classList.remove('drag-over')}
                   onDrop={e => handleDrop(e, source)}
                 >
-                  <input type="file" accept=".csv" onChange={e => handleFile(e, source)} />
-                  <div className="drop-icon">
+                  <input type="file" accept=".csv" className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" onChange={e => handleFile(e, source)} />
+                  <div className={`w-9 h-9 mx-auto mb-3 border-[1.5px] border-paper-rule rounded-lg flex items-center justify-center ${files[source] ? 'border-semantic-success text-semantic-success' : 'text-paper-muted'}`}>
                     {files[source] ? <CheckCircle2 size={16} /> : <Upload size={16} />}
                   </div>
-                  <div className="drop-label">{source} CSV</div>
-                  <div className="drop-hint">{files[source] ? '✓ ready' : `${source}_file.csv`}</div>
-                  {files[source] && <div className="drop-filename">{files[source].name}</div>}
+                  <div className="text-[11px] font-semibold tracking-[0.08em] uppercase text-paper-muted mb-1">{source} CSV</div>
+                  <div className="text-xs text-[#A09888]">{files[source] ? '✓ ready' : `${source}_file.csv`}</div>
+                  {files[source] && <div className="font-mono text-[11px] text-semantic-success mt-1 break-all">{files[source].name}</div>}
                 </div>
               ))}
             </div>
 
-            <div className="config-panel">
-              <div className="config-title">Matching Configuration</div>
-              <div className="config-grid">
-                <div className="config-item">
-                  <label>Amount Tolerance</label>
-                  <div className="slider-row">
-                    <input type="range" min="0" max="10" step="0.5" value={config.amtTol} onChange={e => setConfig({...config, amtTol: e.target.value})} />
-                    <span className="slider-val">{config.amtTol}%</span>
+            <div className="bg-paper-surface border border-paper-ink rounded-[10px] shadow-hard-sm px-6 py-5 mb-6">
+              <div className="text-[11px] font-semibold tracking-[0.08em] uppercase text-paper-muted mb-4">Matching Configuration</div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                {[
+                  { id: 'amtTol', label: 'Amount Tolerance', min: 0, max: 10, step: 0.5, suffix: '%' },
+                  { id: 'dateWin', label: 'Date Window (days)', min: 0, max: 14, step: 1, suffix: 'd' },
+                  { id: 'minConf', label: 'Min Confidence', min: 0.5, max: 1, step: 0.05, suffix: '' }
+                ].map(c => (
+                  <div key={c.id}>
+                    <label className="block text-[11px] text-paper-muted tracking-[0.04em] uppercase mb-2">{c.label}</label>
+                    <div className="flex items-center gap-2.5">
+                      <input type="range" min={c.min} max={c.max} step={c.step} value={config[c.id]} onChange={e => setConfig({...config, [c.id]: e.target.value})} 
+                        className="flex-1 h-[3px] bg-paper-rule rounded-sm outline-none appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:bg-paper-ink [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer" />
+                      <span className="font-mono text-[13px] font-medium min-w-[42px] text-right">{config[c.id]}{c.suffix}</span>
+                    </div>
                   </div>
-                </div>
-                <div className="config-item">
-                  <label>Date Window (days)</label>
-                  <div className="slider-row">
-                    <input type="range" min="0" max="14" step="1" value={config.dateWin} onChange={e => setConfig({...config, dateWin: e.target.value})} />
-                    <span className="slider-val">{config.dateWin}d</span>
-                  </div>
-                </div>
-                <div className="config-item">
-                  <label>Min Confidence</label>
-                  <div className="slider-row">
-                    <input type="range" min="0.5" max="1" step="0.05" value={config.minConf} onChange={e => setConfig({...config, minConf: e.target.value})} />
-                    <span className="slider-val">{config.minConf}</span>
-                  </div>
-                </div>
+                ))}
               </div>
             </div>
 
-            <button className="btn btn-primary btn-run" onClick={runReconcile} disabled={!isReadyToRun || loading}>
+            <button className={`${btnClass} ${btnPrimary} w-full justify-center p-3.5 text-sm`} onClick={runReconcile} disabled={!isReadyToRun || loading}>
               {loading ? <Loader2 size={16} className="spin" /> : <Play size={16} />}
               Run Reconciliation
             </button>
           </section>
         ) : (
           <section id="resultsSection">
-            <div className="results-header">
-              <div className="results-title">Reconciliation Report</div>
-              <div className="flex items-center gap-12">
-                <span className="elapsed-tag">{results.elapsed_ms.toFixed(2)} ms</span>
-                <button className="btn btn-sm" onClick={reset}>
+            <div className="flex items-center justify-between mb-7">
+              <div className="text-[13px] text-paper-muted tracking-[0.04em] uppercase font-semibold">Reconciliation Report</div>
+              <div className="flex items-center gap-3">
+                <span className="font-mono text-[11px] text-paper-muted bg-paper-surface border border-paper-rule px-2 py-[3px] rounded-md">{results.elapsed_ms.toFixed(2)} ms</span>
+                <button className={`${btnClass} px-3 py-1.5 text-xs`} onClick={reset}>
                   <Upload size={13} /> New Run
                 </button>
               </div>
             </div>
 
-            <div className="stats-grid">
-              <div className="stat-card"><div className="stat-label">Total Records</div><div className="stat-value mono">{results.total_records}</div></div>
-              <div className="stat-card"><div className="stat-label">Match Rate</div><div className="stat-value success mono">{results.match_rate_pct.toFixed(2)}%</div></div>
-              <div className="stat-card"><div className="stat-label">Exact Matches</div><div className="stat-value mono">{results.exact_matches}</div></div>
-              <div className="stat-card"><div className="stat-label">Fuzzy Matches</div><div className="stat-value warning mono">{results.fuzzy_matches}</div></div>
-              <div className="stat-card"><div className="stat-label">Exceptions</div><div className="stat-value error mono">{results.exception_count}</div></div>
-              <div className="stat-card">
-                <div className="stat-label">FP Risk</div>
-                <div className="stat-value warning mono">{results.fp_risk}</div>
-                <div className="stat-sub">{results.fp_rate_pct.toFixed(2)}% of total</div>
-              </div>
+            <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mb-5">
+              {[
+                { label: 'Total Records', val: results.total_records, color: '' },
+                { label: 'Match Rate', val: `${results.match_rate_pct.toFixed(2)}%`, color: 'text-semantic-success' },
+                { label: 'Exact Matches', val: results.exact_matches, color: '' },
+                { label: 'Fuzzy Matches', val: results.fuzzy_matches, color: 'text-semantic-warning' },
+                { label: 'Exceptions', val: results.exception_count, color: 'text-semantic-error' },
+                { label: 'FP Risk', val: results.fp_risk, color: 'text-semantic-warning', sub: `${results.fp_rate_pct.toFixed(2)}% of total` }
+              ].map((s, i) => (
+                <div key={i} className="bg-paper-surface border border-paper-ink rounded-[10px] shadow-hard-sm px-3.5 py-4">
+                  <div className="text-[10px] font-semibold tracking-[0.07em] uppercase text-paper-muted mb-2">{s.label}</div>
+                  <div className={`font-mono text-[22px] font-medium leading-[1.1] ${s.color}`}>{s.val}</div>
+                  {s.sub && <div className="font-mono text-[10px] text-paper-muted mt-1">{s.sub}</div>}
+                </div>
+              ))}
             </div>
 
-            <div className={`invariant-bar ${results.invariant_valid ? 'ok' : 'fail'}`}>
-              {results.invariant_valid ? <CheckCircle2 size={16} className="invariant-icon"/> : <XCircle size={16} className="invariant-icon"/>}
-              <span>
+            <div className={`flex items-center gap-3 px-4 py-3 rounded-md border mb-6 text-[13px] ${results.invariant_valid ? 'border-semantic-success bg-[#F0F6F1] text-semantic-success' : 'border-semantic-error bg-[#FAF0ED] text-semantic-error'}`}>
+              {results.invariant_valid ? <CheckCircle2 size={16} className="shrink-0"/> : <XCircle size={16} className="shrink-0"/>}
+              <span className="font-mono text-xs">
                 {results.invariant_valid 
                   ? `Integrity Verified — ${results.exact_matches + results.fuzzy_matches} matched + ${results.exception_count} exceptions = ${results.total_records} total`
                   : 'Integrity Violated — counts do not add up'}
               </span>
             </div>
 
-            <div className="two-col">
-              <div className="paper-card">
-                <div className="card-title">Exception Breakdown</div>
-                {Object.entries(results.exception_breakdown).sort((a,b)=>b[1]-a[1]).map(([k,v]) => (
-                  <div className="breakdown-row" key={k}>
-                    <div className="breakdown-key">{k}</div>
-                    <div className="bar-track">
-                      <div className="bar-fill error" style={{width: `${(v / results.exception_count) * 100}%`}}></div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              {[
+                { title: 'Exception Breakdown', map: results.exception_breakdown, max: results.exception_count, color: 'bg-semantic-error' },
+                { title: 'Records by Source', map: results.records_by_source, max: results.total_records, color: 'bg-paper-ink' }
+              ].map((c, i) => (
+                <div key={i} className="bg-paper-surface border border-paper-ink rounded-[10px] shadow-hard-sm p-5">
+                  <div className="text-[11px] font-semibold tracking-[0.07em] uppercase text-paper-muted mb-4">{c.title}</div>
+                  {Object.entries(c.map).sort((a,b)=>b[1]-a[1]).map(([k,v]) => (
+                    <div className="flex items-center gap-2.5 mb-3 last:mb-0" key={k}>
+                      <div className="font-mono text-[11px] w-[140px] shrink-0 text-paper-ink">{k}</div>
+                      <div className="flex-1 h-1.5 bg-paper-rule rounded-sm overflow-hidden">
+                        <div className={`h-full rounded-sm transition-all duration-500 ${c.color}`} style={{width: `${(v / c.max) * 100}%`}}></div>
+                      </div>
+                      <div className="font-mono text-[11px] text-paper-muted w-[30px] text-right shrink-0">{v}</div>
                     </div>
-                    <div className="breakdown-count">{v}</div>
-                  </div>
-                ))}
-              </div>
-              <div className="paper-card">
-                <div className="card-title">Records by Source</div>
-                {Object.entries(results.records_by_source).sort((a,b)=>b[1]-a[1]).map(([k,v]) => (
-                  <div className="breakdown-row" key={k}>
-                    <div className="breakdown-key">{k}</div>
-                    <div className="bar-track">
-                      <div className="bar-fill source" style={{width: `${(v / results.total_records) * 100}%`}}></div>
-                    </div>
-                    <div className="breakdown-count">{v}</div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ))}
             </div>
 
             {results.alerts && results.alerts.length > 0 && (
-              <div className="alerts-section">
-                <div className="card-title mb-0" style={{marginBottom: 12}}>
+              <div className="mb-6">
+                <div className="text-[11px] font-semibold tracking-[0.07em] uppercase text-paper-muted mb-3">
                   <Activity size={13} style={{display:'inline', verticalAlign:'-2px', marginRight:4}}/>
                   Systemic Alerts
                 </div>
                 {results.alerts.map((a, i) => (
-                  <div className="alert-card" key={i}>
-                    <div className="alert-header">
-                      <span className="alert-badge">{a.reason_code}</span>
-                      <span className="alert-badge" style={{background: 'var(--muted)'}}>{a.source}</span>
-                      <span className="alert-count">count: {a.count} (threshold: {a.threshold})</span>
+                  <div className="bg-[#FDF6EC] border border-semantic-warning rounded-[10px] px-[18px] py-4 mb-2.5 last:mb-0" key={i}>
+                    <div className="flex items-center gap-2.5 mb-1.5">
+                      <span className="font-mono text-[10px] font-medium bg-semantic-warning text-white px-[7px] py-[2px] rounded-[3px] uppercase">{a.reason_code}</span>
+                      <span className="font-mono text-[10px] font-medium bg-paper-muted text-white px-[7px] py-[2px] rounded-[3px] uppercase">{a.source}</span>
+                      <span className="font-mono text-[11px] text-paper-muted">count: {a.count} (threshold: {a.threshold})</span>
                     </div>
-                    <div className="alert-msg">{a.message}</div>
+                    <div className="text-[13px] text-[#7A5A1A] leading-[1.5]">{a.message}</div>
                   </div>
                 ))}
               </div>
             )}
 
-            <div className="table-section paper-card mb-0" style={{padding:0, overflow:'hidden', marginBottom:16}}>
-              <div style={{padding: '16px 20px 0'}}>
-                <div className="card-title" style={{marginBottom:12}}>Exceptions</div>
-                <div className="table-controls">
+            <div className="bg-paper-surface border border-paper-ink rounded-[10px] shadow-hard-sm mb-4" style={{overflow:'hidden'}}>
+              <div className="pt-4 px-5">
+                <div className="text-[11px] font-semibold tracking-[0.07em] uppercase text-paper-muted mb-3">Exceptions</div>
+                <div className="flex items-center gap-2 mb-3.5 flex-wrap">
                   {['ALL', 'AMOUNT_MISMATCH', 'DATE_DRIFT', 'DUPLICATE_REF', 'NO_COUNTERPART', 'MALFORMED_INPUT'].map(f => (
-                    <button key={f} className={`filter-pill ${activeFilter === f ? 'active' : ''}`} onClick={() => setActiveFilter(f)}>
+                    <button key={f} className={`px-3 py-1.5 border border-paper-rule rounded-full text-[11px] font-medium cursor-pointer transition-all tracking-[0.03em] font-mono hover:border-paper-ink hover:text-paper-ink ${activeFilter === f ? 'bg-paper-ink text-paper-bg border-paper-ink' : 'bg-paper-surface text-paper-muted'}`} onClick={() => setActiveFilter(f)}>
                       {f.replace(/_/g, ' ')}
                     </button>
                   ))}
-                  <input type="text" className="search-input" placeholder="Search records..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+                  <input type="text" className="ml-auto px-3 py-1.5 border border-paper-rule rounded-md bg-paper-surface font-mono text-xs text-paper-ink outline-none w-[160px] focus:border-paper-ink placeholder:text-[#A09888]" placeholder="Search records..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
                 </div>
               </div>
-              <div style={{overflowX: 'auto'}}>
-                <table className="data-table">
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse text-[13px]">
                   <thead>
                     <tr>
-                      <th>Record ID</th>
-                      <th>Source</th>
-                      <th>Ref ID</th>
-                      <th>Amount</th>
-                      <th>Reason</th>
-                      <th>Detail</th>
-                      <th></th>
+                      {['Record ID', 'Source', 'Ref ID', 'Amount', 'Reason', 'Detail', ''].map(h => (
+                        <th key={h} className="text-left text-[10px] font-semibold tracking-[0.07em] uppercase text-paper-muted px-3 py-2 border-b border-paper-ink bg-paper-surface sticky top-[56px] z-10">{h}</th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
                     {filteredExceptions.map(e => (
-                      <tr key={e.record_id} className="exc-row" onClick={() => askAi(e.record_id)}>
-                        <td><span className="mono">{e.record_id}</span></td>
-                        <td><span className="mono text-muted">{e.source}</span></td>
-                        <td><span className="mono">{e.ref_id}</span></td>
-                        <td><span className="mono">{e.amount.toFixed(2)} <span className="text-muted">{e.currency}</span></span></td>
-                        <td><span className={`reason-badge ${e.reason_code}`}>{e.reason_code.replace(/_/g,' ')}</span></td>
-                        <td style={{fontSize:12, color:'var(--muted)', maxWidth:220, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>{e.detail}</td>
-                        <td><button className="btn btn-sm" style={{padding:'4px 8px', fontSize:11}} onClick={ev => {ev.stopPropagation(); askAi(e.record_id)}}>Ask AI</button></td>
+                      <tr key={e.record_id} className={`cursor-pointer hover:bg-[#F0EDE3] ${explainId === e.record_id ? 'bg-[#EEEBE1]' : ''}`} onClick={() => askAi(e.record_id)}>
+                        <td className="px-3 py-2.5 border-b border-paper-rule align-middle"><span className="font-mono text-xs">{e.record_id}</span></td>
+                        <td className="px-3 py-2.5 border-b border-paper-rule align-middle"><span className="font-mono text-xs text-paper-muted">{e.source}</span></td>
+                        <td className="px-3 py-2.5 border-b border-paper-rule align-middle"><span className="font-mono text-xs">{e.ref_id}</span></td>
+                        <td className="px-3 py-2.5 border-b border-paper-rule align-middle"><span className="font-mono text-xs">{e.amount.toFixed(2)} <span className="text-paper-muted">{e.currency}</span></span></td>
+                        <td className="px-3 py-2.5 border-b border-paper-rule align-middle"><span className={getReasonBadge(e.reason_code)}>{e.reason_code.replace(/_/g,' ')}</span></td>
+                        <td className="px-3 py-2.5 border-b border-paper-rule align-middle" style={{maxWidth:220, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>
+                          <span className="text-xs text-paper-muted">{e.detail}</span>
+                        </td>
+                        <td className="px-3 py-2.5 border-b border-paper-rule align-middle">
+                          <button className={`${btnClass} px-2 py-1 text-[11px]`} onClick={ev => {ev.stopPropagation(); askAi(e.record_id)}}>Ask AI</button>
+                        </td>
                       </tr>
                     ))}
                     {filteredExceptions.length === 0 && (
-                      <tr><td colSpan="7"><div className="empty-state"><p>No exceptions match the current filter.</p></div></td></tr>
+                      <tr><td colSpan="7"><div className="text-center py-10 px-5 text-paper-muted text-[13px]">No exceptions match the current filter.</div></td></tr>
                     )}
                   </tbody>
                 </table>
               </div>
             </div>
 
-            <div className="collapse-section">
-              <button className="collapse-toggle" onClick={() => setMatchesOpen(!matchesOpen)}>
+            <div className="mb-4">
+              <button className="w-full flex items-center justify-between px-5 py-3 bg-paper-surface border border-paper-ink rounded-[10px] cursor-pointer text-xs font-semibold tracking-[0.05em] uppercase text-paper-muted shadow-hard-sm hover:bg-[#F0EDE3]" onClick={() => setMatchesOpen(!matchesOpen)} style={matchesOpen ? {borderBottomLeftRadius: 0, borderBottomRightRadius: 0, marginBottom: 0} : {}}>
                 <span>Matched Records</span>
                 {matchesOpen ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}
               </button>
               {matchesOpen && (
-                <div className="collapse-body open">
-                  <div style={{overflowX: 'auto'}}>
-                    <table className="data-table">
+                <div className="border border-paper-ink border-t-0 rounded-b-[10px] overflow-hidden bg-paper-surface">
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse text-[13px]">
                       <thead>
                         <tr>
-                          <th>Match ID</th>
-                          <th>Ref ID</th>
-                          <th>Pass</th>
-                          <th>Sources</th>
-                          <th>Records</th>
-                          <th>Confidence</th>
+                          {['Match ID', 'Ref ID', 'Pass', 'Sources', 'Records', 'Confidence'].map(h => (
+                            <th key={h} className="text-left text-[10px] font-semibold tracking-[0.07em] uppercase text-paper-muted px-3 py-2 border-b border-paper-ink bg-paper-surface">{h}</th>
+                          ))}
                         </tr>
                       </thead>
                       <tbody>
                         {results.matches.map(m => (
                           <tr key={m.match_id}>
-                            <td><span className="mono" style={{fontSize:11}}>{m.match_id}</span></td>
-                            <td><span className="mono">{m.ref_id}</span></td>
-                            <td><span className={`pass-badge ${m.pass}`}>{m.pass}</span></td>
-                            <td><span className="mono text-muted" style={{fontSize:11}}>{m.sources.join(' · ')}</span></td>
-                            <td><span className="mono text-muted">{m.record_count}</span></td>
-                            <td>
-                              <div className="conf-bar">
-                                <div className="conf-track"><div className="conf-fill" style={{width: `${m.confidence * 100}%`}}></div></div>
-                                <span className="mono" style={{fontSize:11, color:'var(--muted)'}}>{m.confidence.toFixed(3)}</span>
+                            <td className="px-3 py-2.5 border-b border-paper-rule align-middle"><span className="font-mono text-[11px]">{m.match_id}</span></td>
+                            <td className="px-3 py-2.5 border-b border-paper-rule align-middle"><span className="font-mono text-xs">{m.ref_id}</span></td>
+                            <td className="px-3 py-2.5 border-b border-paper-rule align-middle"><span className={getPassBadge(m.pass)}>{m.pass}</span></td>
+                            <td className="px-3 py-2.5 border-b border-paper-rule align-middle"><span className="font-mono text-[11px] text-paper-muted">{m.sources.join(' · ')}</span></td>
+                            <td className="px-3 py-2.5 border-b border-paper-rule align-middle"><span className="font-mono text-xs text-paper-muted">{m.record_count}</span></td>
+                            <td className="px-3 py-2.5 border-b border-paper-rule align-middle">
+                              <div className="flex items-center gap-1.5">
+                                <div className="w-12 h-1 bg-paper-rule rounded-sm">
+                                  <div className="h-full rounded-sm bg-semantic-success" style={{width: `${m.confidence * 100}%`}}></div>
+                                </div>
+                                <span className="font-mono text-[11px] text-paper-muted">{m.confidence.toFixed(3)}</span>
                               </div>
                             </td>
                           </tr>
@@ -390,44 +401,44 @@ export default function App() {
               )}
             </div>
 
-            <div className="ai-panel">
-              <div className="ai-panel-header">
+            <div className="bg-paper-surface border border-paper-ink rounded-[10px] shadow-hard overflow-hidden mt-6">
+              <div className="flex items-center gap-2.5 px-5 py-4 border-b border-paper-rule bg-paper-ink text-paper-bg">
                 <Sparkles size={15}/>
-                <span className="ai-panel-title">AI Finance Controller</span>
-                <span style={{marginLeft:'auto', fontFamily:'var(--mono)', fontSize:10, opacity:.6}}>Powered by Gemini</span>
+                <span className="text-xs font-semibold tracking-[0.05em] uppercase">AI Finance Controller</span>
+                <span className="ml-auto font-mono text-[10px] opacity-60">Powered by Gemini</span>
               </div>
-              <div className="ai-tabs">
-                <button className={`ai-tab ${aiTab === 'explain' ? 'active' : ''}`} onClick={() => setAiTab('explain')}>Explain Record</button>
-                <button className={`ai-tab ${aiTab === 'report' ? 'active' : ''}`} onClick={() => setAiTab('report')}>Resolution Report</button>
+              <div className="flex border-b border-paper-rule">
+                <button className={`px-5 py-[11px] text-xs cursor-pointer border-b-2 transition-all font-sans ${aiTab === 'explain' ? 'text-paper-ink border-paper-ink font-semibold' : 'font-medium text-paper-muted border-transparent hover:text-paper-ink'}`} onClick={() => setAiTab('explain')}>Explain Record</button>
+                <button className={`px-5 py-[11px] text-xs cursor-pointer border-b-2 transition-all font-sans ${aiTab === 'report' ? 'text-paper-ink border-paper-ink font-semibold' : 'font-medium text-paper-muted border-transparent hover:text-paper-ink'}`} onClick={() => setAiTab('report')}>Resolution Report</button>
               </div>
 
-              <div className={`ai-pane ${aiTab === 'explain' ? 'active' : ''}`}>
-                <div className="explain-row">
-                  <input className="explain-input" value={explainId} onChange={e => setExplainId(e.target.value)} placeholder="Record ID, e.g. GW-20" />
-                  <button className="btn btn-primary btn-sm" onClick={() => askAi()} disabled={aiLoading || !explainId}>Ask AI</button>
+              <div className={`p-5 ${aiTab === 'explain' ? 'block' : 'hidden'}`}>
+                <div className="flex gap-2.5 mb-4">
+                  <input className="flex-1 px-3.5 py-[9px] border border-paper-rule rounded-md bg-paper-bg font-mono text-[13px] text-paper-ink outline-none focus:border-paper-ink" value={explainId} onChange={e => setExplainId(e.target.value)} placeholder="Record ID, e.g. GW-20" />
+                  <button className={`${btnClass} ${btnPrimary} px-3 py-1.5 text-xs`} onClick={() => askAi()} disabled={aiLoading || !explainId}>Ask AI</button>
                 </div>
                 {aiLoading && aiTab === 'explain' ? (
-                  <div className="ai-response loading"><Loader2 size={16} className="spin"/> Asking AI...</div>
+                  <div className="bg-paper-bg border border-paper-rule rounded-md p-4 min-h-[80px] text-[13px] leading-[1.65] text-paper-muted flex items-center gap-2.5"><Loader2 size={16} className="spin"/> Asking AI...</div>
                 ) : aiResponse ? (
-                  <div className="ai-response ai-markdown" dangerouslySetInnerHTML={{__html: aiResponse}} />
+                  <div className="bg-paper-bg border border-paper-rule rounded-md p-4 min-h-[80px] text-[13px] leading-[1.65] text-paper-ink ai-markdown" dangerouslySetInnerHTML={{__html: aiResponse}} />
                 ) : (
-                  <div className="ai-response empty">Click an exception row below or enter a record ID to get a plain-English explanation.</div>
+                  <div className="bg-paper-bg border border-paper-rule rounded-md p-4 min-h-[80px] text-[13px] leading-[1.65] text-paper-muted italic flex items-center justify-center">Click an exception row below or enter a record ID to get a plain-English explanation.</div>
                 )}
               </div>
 
-              <div className={`ai-pane ${aiTab === 'report' ? 'active' : ''}`}>
-                <div className="ai-report-meta">
-                  <span>Full resolution instructions for all {results.exception_count} exceptions</span>
-                  <button className="btn btn-sm btn-primary" onClick={generateReport} disabled={aiLoading}>
+              <div className={`p-5 ${aiTab === 'report' ? 'block' : 'hidden'}`}>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-[11px] text-paper-muted font-mono">Full resolution instructions for all {results?.exception_count || 0} exceptions</span>
+                  <button className={`${btnClass} ${btnPrimary} px-3 py-1.5 text-xs`} onClick={generateReport} disabled={aiLoading}>
                     <FileText size={12}/> Generate Report
                   </button>
                 </div>
                 {aiLoading && aiTab === 'report' ? (
-                  <div className="ai-response loading"><Loader2 size={16} className="spin"/> Generating resolution report...</div>
+                  <div className="bg-paper-bg border border-paper-rule rounded-md p-4 min-h-[80px] text-[13px] leading-[1.65] text-paper-muted flex items-center gap-2.5"><Loader2 size={16} className="spin"/> Generating resolution report...</div>
                 ) : reportHTML ? (
-                  <div className="ai-response ai-markdown" dangerouslySetInnerHTML={{__html: reportHTML}} />
+                  <div className="bg-paper-bg border border-paper-rule rounded-md p-4 min-h-[80px] text-[13px] leading-[1.65] text-paper-ink ai-markdown" dangerouslySetInnerHTML={{__html: reportHTML}} />
                 ) : (
-                  <div className="ai-response empty">Click Generate Report to run the AI Finance Controller on all exceptions.</div>
+                  <div className="bg-paper-bg border border-paper-rule rounded-md p-4 min-h-[80px] text-[13px] leading-[1.65] text-paper-muted italic flex items-center justify-center">Click Generate Report to run the AI Finance Controller on all exceptions.</div>
                 )}
               </div>
             </div>
